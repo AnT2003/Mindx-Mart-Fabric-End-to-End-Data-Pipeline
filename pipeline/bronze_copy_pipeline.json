@@ -1,0 +1,140 @@
+{
+  "name": "PL_Bronze_Ingestion",
+  "description": "Medallion Tier 1 (Bronze). Copies the two raw source CSVs into Files/Bronze/ as Parquet, preserving original structure. Built with a Data Factory pipeline as required by the assignment.",
+  "properties": {
+    "activities": [
+      {
+        "name": "Copy_Sales_CSV_to_Bronze_Parquet",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.01:00:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "source": {
+            "type": "DelimitedTextSource",
+            "storeSettings": {
+              "type": "LakehouseReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "DelimitedTextReadSettings",
+              "quoteChar": "\"",
+              "escapeChar": "\"",
+              "firstRowAsHeader": true
+            }
+          },
+          "sink": {
+            "type": "ParquetSink",
+            "storeSettings": {
+              "type": "LakehouseWriteSettings",
+              "copyBehavior": "PreserveHierarchy"
+            },
+            "formatSettings": {
+              "type": "ParquetWriteSettings"
+            }
+          },
+          "enableStaging": false,
+          "translator": {
+            "type": "TabularTranslator",
+            "typeConversion": true,
+            "typeConversionSettings": {
+              "allowDataTruncation": false,
+              "treatBooleanAsNumber": false
+            }
+          }
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_Raw_Sales_CSV",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_Bronze_Sales_Parquet",
+            "type": "DatasetReference"
+          }
+        ]
+      },
+      {
+        "name": "Copy_ExchangeRate_CSV_to_Bronze_Parquet",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": {
+          "timeout": "0.01:00:00",
+          "retry": 1,
+          "retryIntervalInSeconds": 30
+        },
+        "typeProperties": {
+          "source": {
+            "type": "DelimitedTextSource",
+            "storeSettings": {
+              "type": "LakehouseReadSettings",
+              "recursive": false
+            },
+            "formatSettings": {
+              "type": "DelimitedTextReadSettings",
+              "firstRowAsHeader": true
+            }
+          },
+          "sink": {
+            "type": "ParquetSink",
+            "storeSettings": {
+              "type": "LakehouseWriteSettings",
+              "copyBehavior": "PreserveHierarchy"
+            },
+            "formatSettings": {
+              "type": "ParquetWriteSettings"
+            }
+          },
+          "enableStaging": false
+        },
+        "inputs": [
+          {
+            "referenceName": "DS_Raw_ExchangeRate_CSV",
+            "type": "DatasetReference"
+          }
+        ],
+        "outputs": [
+          {
+            "referenceName": "DS_Bronze_ExchangeRate_Parquet",
+            "type": "DatasetReference"
+          }
+        ]
+      }
+    ],
+    "annotations": ["medallion", "bronze", "mindx-mart"]
+  },
+  "_datasets_reference_note": "The four datasets below describe the source/sink bindings. In the Fabric UI these are configured inside the Copy activity's Source/Destination tabs (Lakehouse connector). They are documented here so the bindings are explicit.",
+  "datasets": {
+    "DS_Raw_Sales_CSV": {
+      "type": "DelimitedText",
+      "linkedService": "Lakehouse_MINDX",
+      "location": "Files/raw/mindx_raw_sales_data.csv",
+      "firstRowAsHeader": true,
+      "columnDelimiter": ",",
+      "quoteChar": "\"",
+      "escapeChar": "\""
+    },
+    "DS_Bronze_Sales_Parquet": {
+      "type": "Parquet",
+      "linkedService": "Lakehouse_MINDX",
+      "location": "Files/Bronze/sales/sales.parquet"
+    },
+    "DS_Raw_ExchangeRate_CSV": {
+      "type": "DelimitedText",
+      "linkedService": "Lakehouse_MINDX",
+      "location": "Files/raw/exchange_rate_2425.csv",
+      "firstRowAsHeader": true,
+      "columnDelimiter": ","
+    },
+    "DS_Bronze_ExchangeRate_Parquet": {
+      "type": "Parquet",
+      "linkedService": "Lakehouse_MINDX",
+      "location": "Files/Bronze/exchange_rate/exchange_rate.parquet"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "name": "PL_MINDX_Master_Orchestration",
+  "description": "End-to-end orchestration: generates a batch_id, lands Bronze (Copy), then runs the Silver and Gold notebooks in sequence. Notebook activities are chained on success; each has retries, and a failure path logs to the audit pipeline. Build these activities in the Fabric Data pipeline UI using this file as the spec.",
+  "properties": {
+    "parameters": {
+      "batch_id": {
+        "type": "string",
+        "defaultValue": "@formatDateTime(utcNow(), 'yyyyMMddHHmmss')"
+      }
+    },
+    "variables": {
+      "run_status": { "type": "String", "defaultValue": "STARTED" }
+    },
+    "activities": [
+      {
+        "name": "Bronze_Copy_Sales",
+        "type": "Copy",
+        "description": "Land sales CSV -> Files/Bronze/sales (Parquet). See bronze_copy_pipeline.json for source/sink detail.",
+        "dependsOn": [],
+        "policy": { "timeout": "0.01:00:00", "retry": 2, "retryIntervalInSeconds": 30 },
+        "typeProperties": {
+          "source": { "type": "DelimitedTextSource", "formatSettings": { "type": "DelimitedTextReadSettings", "quoteChar": "\"", "escapeChar": "\"", "firstRowAsHeader": true } },
+          "sink": { "type": "ParquetSink", "formatSettings": { "type": "ParquetWriteSettings" } }
+        },
+        "inputs": [{ "referenceName": "DS_Raw_Sales_CSV", "type": "DatasetReference" }],
+        "outputs": [{ "referenceName": "DS_Bronze_Sales_Parquet", "type": "DatasetReference" }]
+      },
+      {
+        "name": "Bronze_Copy_ExchangeRate",
+        "type": "Copy",
+        "dependsOn": [],
+        "policy": { "timeout": "0.01:00:00", "retry": 2, "retryIntervalInSeconds": 30 },
+        "typeProperties": {
+          "source": { "type": "DelimitedTextSource", "formatSettings": { "type": "DelimitedTextReadSettings", "firstRowAsHeader": true } },
+          "sink": { "type": "ParquetSink", "formatSettings": { "type": "ParquetWriteSettings" } }
+        },
+        "inputs": [{ "referenceName": "DS_Raw_ExchangeRate_CSV", "type": "DatasetReference" }],
+        "outputs": [{ "referenceName": "DS_Bronze_ExchangeRate_Parquet", "type": "DatasetReference" }]
+      },
+      {
+        "name": "Silver_Cleaning",
+        "type": "TridentNotebook",
+        "description": "Run 02_silver_cleaning with the shared batch_id.",
+        "dependsOn": [
+          { "activity": "Bronze_Copy_Sales", "dependencyConditions": ["Succeeded"] },
+          { "activity": "Bronze_Copy_ExchangeRate", "dependencyConditions": ["Succeeded"] }
+        ],
+        "policy": { "timeout": "0.02:00:00", "retry": 1, "retryIntervalInSeconds": 60 },
+        "typeProperties": {
+          "notebookId": "<02_silver_cleaning notebook id>",
+          "workspaceId": "<workspace id>",
+          "parameters": {
+            "batch_id": { "value": { "value": "@pipeline().parameters.batch_id", "type": "Expression" }, "type": "string" }
+          }
+        }
+      },
+      {
+        "name": "Gold_Modeling",
+        "type": "TridentNotebook",
+        "description": "Run 03_gold_modeling with the shared batch_id.",
+        "dependsOn": [
+          { "activity": "Silver_Cleaning", "dependencyConditions": ["Succeeded"] }
+        ],
+        "policy": { "timeout": "0.02:00:00", "retry": 1, "retryIntervalInSeconds": 60 },
+        "typeProperties": {
+          "notebookId": "<03_gold_modeling notebook id>",
+          "workspaceId": "<workspace id>",
+          "parameters": {
+            "batch_id": { "value": { "value": "@pipeline().parameters.batch_id", "type": "Expression" }, "type": "string" }
+          }
+        }
+      },
+      {
+        "name": "On_Failure_Notify",
+        "type": "TridentNotebook",
+        "description": "Failure path - reached only if a prior stage fails. Hook for alerting / marking the run FAILED.",
+        "dependsOn": [
+          { "activity": "Silver_Cleaning", "dependencyConditions": ["Failed"] },
+          { "activity": "Gold_Modeling", "dependencyConditions": ["Failed"] }
+        ],
+        "policy": { "timeout": "0.00:15:00", "retry": 0 },
+        "typeProperties": {
+          "notebookId": "<optional alerting notebook id>",
+          "workspaceId": "<workspace id>",
+          "parameters": {
+            "batch_id": { "value": { "value": "@pipeline().parameters.batch_id", "type": "Expression" }, "type": "string" }
+          }
+        }
+      }
+    ],
+    "annotations": ["medallion", "orchestration", "mindx-mart"]
+  },
+  "_notes": "TridentNotebook is the Fabric pipeline activity type for running a notebook. After importing the notebooks, paste their notebook ids + workspace id above. The notebooks already read/generate batch_id, so passing it here ties Bronze/Silver/Gold rows of one run together in audit_pipeline_run_log."
+}

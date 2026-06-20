@@ -1,0 +1,18 @@
+dimension,table,column,issue,severity,count,pct,recommended_action,proposed_rule
+Completeness,sales,customer_age,Giá trị rỗng,WARN,63,1.2,Điền giá trị mặc định / null + cờ,
+Completeness,sales,device_type,Giá trị rỗng,WARN,1730,32.95,Điền giá trị mặc định / null + cờ,
+Completeness,sales,discount_code,Giá trị rỗng,WARN,3692,70.32,Điền giá trị mặc định / null + cờ,
+Completeness,sales,feedback_score,Giá trị rỗng,WARN,697,13.28,Điền giá trị mặc định / null + cờ,
+Uniqueness,sales,order_id,Trùng khóa nghiệp vụ,REJECT,250,4.76,"Giữ bản ghi đầu, cách ly bản trùng",SAL_006 duplicate_order_id
+Validity,sales,order_date,Nhiều định dạng ngày (ISO + dd/MM/yyyy),REJECT,1069,20.36,Parse đa định dạng -> timestamp; lỗi -> cách ly,SAL_002 unparseable_order_date
+Validity,sales,total_amount,Lẫn ký tự tiền tệ '$',CLEAN,838,15.96,"regexp_replace bỏ ký tự, ép double",(làm sạch tại chỗ)
+Validity,sales,total_amount,Giá trị <= 0 hoặc không phải số,REJECT,0,0.0,Cách ly,SAL_003 invalid_total_amount
+Validity,sales,feedback_score,Ngoài thang 1-5 (sentinel 99) hoặc rỗng,WARN,1444,27.5,Giữ + cờ feedback_is_valid; lọc ở Gold,SAL_101 feedback_out_of_scale
+Structure,sales,items,Mảng JSON hỏng hoặc rỗng,REJECT,0,0.0,Cách ly,SAL_004 invalid_items_json
+Consistency,sales,payment_method,Cùng 1 giá trị nhiều cách viết (credit_card/CREDITCARD/Credit Card),CLEAN,3211,61.16,Chuẩn hóa về Credit Card/PayPal/COD,(làm sạch tại chỗ)
+Accuracy,sales,shipping_cost,Giá trị âm (bất khả thi),REJECT,108,2.06,Cách ly,SAL_005 negative_or_invalid_shipping
+Accuracy,sales,customer_age,Tuổi ngoài khoảng 18-100,WARN,0,0.0,Giữ + cờ cảnh báo,SAL_102 customer_age_out_of_range
+Structure,sales,customer_info,JSON object lồng trong cột,CLEAN,5250,100.0,from_json tách name/email/phone,(làm sạch tại chỗ)
+Timeliness,sales,order_date,Ngày trong tương lai (> hôm nay),REJECT,0,0.0,Cách ly (đơn không thể ở tương lai),SAL_105 order_date_in_future
+Timeliness,sales,order_date,Ngày ngoài cửa sổ 2024-2025 (không có tỷ giá để quy đổi),WARN,0,0.0,Giữ + cờ; cảnh báo quy đổi VND,SAL_104 order_date_outside_rate_coverage
+Timeliness,sales<->exchange_rate,order year-month,Tháng đơn không có dòng tỷ giá (độ phủ chéo nguồn),OK,0,0.0,Kiểm tra ở Gold (left join -> đếm null); bổ sung tỷ giá nếu thiếu,(Gold: missing_fx count)
